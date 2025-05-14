@@ -1,0 +1,38 @@
+from django.contrib import admin
+from .models import Album, Song, Playlist, Music_Artist
+
+
+class Music_ArtistAdmin(admin.ModelAdmin):
+    list_display = ('name', 'bio')
+    list_filter = ('name',)
+    list_display_links = ('name',)
+
+
+admin.site.register(Music_Artist, Music_ArtistAdmin)
+
+
+class AlbumAdmin(admin.ModelAdmin):
+    list_display = ('name', 'artist')
+    list_filter = ('artist',)
+    list_display_links = ('name',)
+
+
+admin.site.register(Album, AlbumAdmin)
+
+
+class SongAdmin(admin.ModelAdmin):
+    list_display = ('name', 'album')
+    list_filter = ('album',)
+    list_display_links = ('name',)
+
+
+admin.site.register(Song, SongAdmin)
+
+
+class PlaylistAdmin(admin.ModelAdmin):
+    list_display = ('name', 'songs')
+    list_filter = ('name',)
+    list_display_links = ('name',)
+
+
+admin.site.register(Playlist, PlaylistAdmin)

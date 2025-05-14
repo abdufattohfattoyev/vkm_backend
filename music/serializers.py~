@@ -1,0 +1,123 @@
+from rest_framework import serializers
+from .models import Song, Album, Playlist, MusicArtist
+from django.urls import reverse
+
+
+class MusicArtistSerializer(serializers.ModelSerializer):
+    image = serializers.ImageField(allow_null=True, required=False)
+    albums = serializers.SerializerMethodField()
+
+    def get_albums(self, obj):
+        request = self.context.get('request')
+        albums = obj.albums.all()  # Cheklovsiz barcha albomlar
+        return [
+            {
+                'id': album.id,
+                'name': album.name,
+                'slug': album.slug,
+                'url': request.build_absolute_uri(
+                    reverse('artist-album-list', kwargs={'artist_pk': obj.id, 'pk': album.id})
+                ),
+            }
+            for album in albums
+        ]
+
+    class Meta:
+        model = MusicArtist
+        fields = ['id', 'name', 'slug', 'bio', 'image', 'albums']
+        read_only_fields = ['id', 'slug', 'albums']
+
+    def validate_name(self, value):
+        if len(value.strip()) < 2:
+            raise serializers.ValidationError("Artist ismi kamida 2 ta belgidan iborat bo‘lishi kerak.")
+        return value
+
+
+class AlbumSerializer(serializers.ModelSerializer):
+    image = serializers.ImageField(allow_null=True, required=False)
+    artist = MusicArtistSerializer(read_only=True)
+    artist_id = serializers.PrimaryKeyRelatedField(
+        queryset=MusicArtist.objects.all(), source='artist', write_only=True
+    )
+    songs = serializers.SerializerMethodField()
+
+    def get_songs(self, obj):
+        request = self.context.get('request')
+        songs = obj.songs.all()  # Cheklovsiz barcha qo‘shiqlar
+        return [
+            {
+                'id': song.id,
+                'name': song.name,
+                'slug': song.slug,
+                'url': request.build_absolute_uri(
+                    reverse('song-detail', kwargs={'pk': song.id})
+                ),
+            }
+            for song in songs
+        ]
+
+    class Meta:
+        model = Album
+        fields = [
+            'id', 'name', 'slug', 'artist', 'artist_id', 'image',
+            'release_date', 'genre', 'songs'
+        ]
+        read_only_fields = ['id', 'slug', 'artist', 'songs']
+
+    def validate_name(self, value):
+        if len(value.strip()) < 2:
+            raise serializers.ValidationError("Albom nomi kamida 2 ta belgidan iborat bo‘lishi kerak.")
+        return value
+
+
+class SongSerializer(serializers.ModelSerializer):
+    album = AlbumSerializer(read_only=True)
+    album_id = serializers.PrimaryKeyRelatedField(
+        queryset=Album.objects.all(), source='album', write_only=True
+    )
+    file = serializers.FileField(allow_null=False, required=True)
+    music_file = serializers.SerializerMethodField()
+
+    def get_music_file(self, obj):
+        request = self.context.get('request')
+        if obj.file and hasattr(obj.file, 'url'):
+            return request.build_absolute_uri(obj.file.url)
+        return None
+
+    class Meta:
+        model = Song
+        fields = [
+            'id', 'name', 'slug', 'album', 'album_id', 'file', 'music_file'
+        ]
+        read_only_fields = ['id', 'slug', 'album', 'music_file']
+
+    def validate_name(self, value):
+        if len(value.strip()) < 2:
+            raise serializers.ValidationError("Qo‘shiq nomi kamida 2 ta belgidan iborat bo‘lishi kerak.")
+        return value
+
+    def validate_file(self, value):
+        if value.size > 10 * 1024 * 1024:  # 10MB cheklov
+            raise serializers.ValidationError("Fayl hajmi 10MB dan oshmasligi kerak.")
+        if not value.name.endswith(('.mp3', '.wav')):
+            raise serializers.ValidationError("Faqat MP3 va WAV fayllariga ruxsat beriladi.")
+        return value
+
+
+class PlaylistSerializer(serializers.ModelSerializer):
+    image = serializers.ImageField(allow_null=True, required=False)
+    songs = SongSerializer(many=True, read_only=True)
+    song_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Song.objects.all(), many=True, source='songs', write_only=True, required=False
+    )
+    created_by = serializers.StringRelatedField(read_only=True)
+
+    class Meta:
+        model = Playlist
+        fields = ['id', 'name', 'slug', 'image', 'songs', 'song_ids', 'created_by']
+        read_only_fields = ['id', 'slug', 'songs', 'created_by']
+
+    def validate_name(self, value):
+        if len(value.strip()) < 2:
+            raise serializers.ValidationError("Pleylist nomi kamida 2 ta belgidan iborat bo‘lishi kerak.")
+        return value
